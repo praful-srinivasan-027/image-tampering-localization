@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual Environment
+venv/
+
+# macOS
+.DS_Store
+._*
+.Trashes/
+.Spotlight-V100/
+
+# Environment Variables
+.env
+
+# Dataset
+Dataset/
+
+# Model Checkpoints
+*.pt
+*.pth
