@@ -109,15 +109,3 @@ class UNet(nn.Module):
         out13=self.decoderBlock4(InputVector)
         out14 = self.finalConv(out13)
         return out14
-
-imgX = cv2.imread("/Users/mac/Coding/Artificial Intelligence/ImageTampering/Dataset/casia/Tp/Tp_S_NRN_S_N_txt00070_txt00070_11315.jpg", 1)
-imgX = cv2.cvtColor(imgX, cv2.COLOR_BGR2RGB)
-print(imgX.shape)
-model=UNet()
-imgY = model.forward(torch.from_numpy(imgX.astype(np.float32)/255.0).permute(2, 0, 1).unsqueeze(0))
-imgY = torch.argmax(imgY, dim=1)
-print(imgY.shape)
-cv2.imshow("Final", imgY.squeeze(0).detach().cpu().numpy().astype('uint8')*255)
-# cv2.imshow("mat", imgX)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
