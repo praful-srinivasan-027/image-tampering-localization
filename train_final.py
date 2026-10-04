@@ -6,36 +6,51 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from model import UNet
 
+
 class CASIA_Dataset(Dataset):
+
     def __init__(self, target_size=(384, 256)):
-        self.image_dirX = Path("/kaggle/input/datasets/prafulsrinivasan/casia/casia/Tp")
-        self.image_dirY = Path("/kaggle/input/datasets/prafulsrinivasan/casia/casia/CASIA 2 Groundtruth")
+        self.image_dirX = Path(
+            "/kaggle/input/datasets/prafulsrinivasan/casia/casia/Tp"
+        )
+        self.image_dirY = Path(
+            "/kaggle/input/datasets/prafulsrinivasan/casia/casia/CASIA 2"
+            " Groundtruth"
+        )
         self.target_size = target_size
-        self.x = []
+
+        all_x = []
         for suffix in ["*.tif", "*.jpg", "*.png"]:
-            self.x.extend(self.image_dirX.glob(suffix.lower()))
-            self.x.extend(self.image_dirX.glob(suffix.upper()))
-        self.x.sort()
+            all_x.extend(self.image_dirX.glob(suffix.lower()))
+            all_x.extend(self.image_dirX.glob(suffix.upper()))
+
+        self.pairs = []
+        for x in all_x:
+            y = self.image_dirY / f"{x.stem}_gt.png"
+            if y.exists():
+                self.pairs.append((x, y))
+
+        self.pairs.sort()
+        print(f"Kept {len(self.pairs)} items with existing masks.")
 
     def __len__(self):
-        return len(self.x)
-    
+        return len(self.pairs)
+
     def __getitem__(self, elementNumber):
-        x = self.x[elementNumber]
-        y = self.image_dirY / f"{x.stem}_gt.png"
+        x, y = self.pairs[elementNumber]
         imgX = cv2.imread(str(x), 1)
         imgY = cv2.imread(str(y), 0)
-        if imgX is None:
-            raise FileNotFoundError(f"Couldn't load the image {x}")
-        if imgY is None:
-            raise FileNotFoundError(f"Couldn't load the image {y}")
+
         imgX = cv2.resize(imgX, self.target_size)
-        imgY = cv2.resize(imgY, self.target_size, interpolation=cv2.INTER_NEAREST)
+        imgY = cv2.resize(
+            imgY, self.target_size, interpolation=cv2.INTER_NEAREST
+        )
         imgX = cv2.cvtColor(imgX, cv2.COLOR_BGR2RGB)
-        imgX = imgX.astype(np.float32)/255.0
+        imgX = imgX.astype(np.float32) / 255.0
         imgX = torch.from_numpy(imgX).permute(2, 0, 1)
         imgY = torch.from_numpy((imgY >= 128).astype(np.int64))
         return imgX, imgY
+
 
 def accuracy_fn(preds, targets):
     preds = torch.argmax(preds, dim=1)
@@ -43,10 +58,18 @@ def accuracy_fn(preds, targets):
     acc = correct / targets.numel()
     return acc.item()
 
-dataset = CASIA_Dataset()
-loader = DataLoader(dataset=dataset, batch_size=16, shuffle=True, num_workers=2, pin_memory=True)
 
+dataset = CASIA_Dataset()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+use_pin = device.type == "cuda"
+loader = DataLoader(
+    dataset=dataset,
+    batch_size=16,
+    shuffle=True,
+    num_workers=2,
+    pin_memory=use_pin,
+)
+
 model = UNet().to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 lossFn = nn.CrossEntropyLoss()
@@ -71,6 +94,9 @@ for epoch in range(epochs):
 
     avg_loss = total_loss / len(loader)
     avg_acc = total_acc / len(loader)
-    print(f"Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f} - Acc: {avg_acc:.4f}")
+    print(
+        f"Epoch {epoch+1:02d}/{epochs:02d} - Loss: {avg_loss:.4f} - Acc:"
+        f" {avg_acc:.4f}"
+    )
 
 torch.save(model.state_dict(), "/kaggle/working/unet_casia.pth")
